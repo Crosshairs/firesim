@@ -46,17 +46,57 @@ common_ld_flags := $(TARGET_LD_FLAGS) -lrt
 ####################################
 # Golden Gate Invocation           #
 ####################################
+BB_F = $(GENERATED_DIR)/firrtl_black_box_resource_files.f
+lookup_dirs = $(shell find -L $(chipyard_dir)/generators/*/src/main/resources/vsrc -name target -prune -o -type d -print 2> /dev/null | grep '.*/\($(1)\)$$')
+INC_DIR_NAMES ?= include inc
+INC_DIRS ?= $(foreach dir_name,$(INC_DIR_NAMES),$(call lookup_dirs,$(dir_name)))
+# choose as a top module one in the common files (only matters to not error in pre-processing)
+A_BBOX_MODULE = $(basename $(notdir $(shell grep -m 1 "\.\(sv\|v\)$$" $(BB_F))))
+
+MIDAS_VERILOG := $(basename $(VERILOG)).midas.v
+BB_VERILOG := $(basename $(VERILOG)).blackbox.v
+
+VERILATOR ?= verilator --cc --exe
+OTHER_PREPROC_FLAGS ?=
+VERILATOR_PREPROC_FLAGS = \
+	-E \
+	+incdir+$(GENERATED_DIR) \
+	$(foreach dir_path,$(INC_DIRS),+incdir+$(dir_path)) \
+	-Wno-STMTDLY \
+	-Werror-PINMISSING \
+	-Werror-IMPLICIT \
+	-Wno-fatal \
+	-Wno-PINCONNECTEMPTY \
+	-Wno-ASSIGNDLY \
+	-Wno-DECLFILENAME \
+	-Wno-UNUSED \
+	-Wno-UNOPTFLAT \
+	-Wno-BLKANDNBLK \
+	-Wno-style \
+	-Wall \
+	-UVERILATOR \
+	-Uverilator \
+	-Uverilator3 \
+	-f $(BB_F) \
+	$(OTHER_PREPROC_FLAGS)
+
+$(BB_VERILOG): $(BB_F)
+	$(VERILATOR) $(VERILATOR_PREPROC_FLAGS) --top-module $(A_BBOX_MODULE) -Mdir $(GENERATED_DIR)/$(long_name).preprocess > $@.temp
+	sed '/^`line/d' $@.temp > $@
+	rm -rf $@.temp
+
 midas_sbt_project := {file:$(firesim_base_dir)}midas
 
-$(VERILOG) $(HEADER): $(FIRRTL_FILE) $(ANNO_FILE)
+$(MIDAS_VERILOG) $(HEADER) $(BB_F): $(FIRRTL_FILE) $(ANNO_FILE)
 	cd $(base_dir) && $(SBT) "project $(midas_sbt_project)" "runMain midas.stage.GoldenGateMain \
-		-o $(VERILOG) -i $(FIRRTL_FILE) -td $(GENERATED_DIR) \
+		-o $(MIDAS_VERILOG) -i $(FIRRTL_FILE) -td $(GENERATED_DIR) \
 		-ggaf $(ANNO_FILE) \
 		-ggcp $(PLATFORM_CONFIG_PACKAGE) \
 		-ggcs $(PLATFORM_CONFIG) \
 		-E verilog"
-	grep -sh ^ $(GENERATED_DIR)/firrtl_black_box_resource_files.f | \
-	xargs cat >> $(VERILOG) # Append blackboxes to FPGA wrapper, if any
+
+$(VERILOG): $(MIDAS_VERILOG) $(BB_VERILOG)
+	cat $^ > $@
 
 ####################################
 # Runtime-Configuration Generation #
@@ -172,7 +212,8 @@ $(fpga_v): $(VERILOG) $(fpga_work_dir)/stamp
 	$(firesim_base_dir)/../scripts/repo_state_summary.sh > $(repo_state)
 	cp -f $< $@
 	sed -i "s/\$$random/64'b0/g" $@
-	sed -i 's/fatal/fatal(0, "")/g' $@
+	sed -i "s/void'(randomize(val));/val = '0;/g" $@
+	sed -i 's/fatal;/fatal(0, "");/g' $@
 
 $(fpga_vh): $(VERILOG) $(fpga_work_dir)/stamp
 	cp -f $(GENERATED_DIR)/$(@F) $@
@@ -184,7 +225,8 @@ $(fpga_tcl_env): $(VERILOG) $(fpga_work_dir)/stamp
 $(ila_work_dir): $(verilog) $(fpga_work_dir)/stamp
 	cp -f $(GENERATED_DIR)/firesim_ila_insert_* $(fpga_work_dir)/design/ila_files/
 	sed -i "s/\$$random/64'b0/g" $(fpga_work_dir)/design/ila_files/*
-	sed -i 's/fatal/fatal(0, "")/g' $(fpga_work_dir)/design/ila_files/*
+	sed -i "s/void'(randomize(val));/val = '0;/g" $(fpga_work_dir)/design/ila_files/*
+	sed -i 's/fatal;/fatal(0, "");/g' $(fpga_work_dir)/design/ila_files/*
 
 # Goes as far as setting up the build directory without running the cad job
 # Used by the manager before passing a build to a remote machine
