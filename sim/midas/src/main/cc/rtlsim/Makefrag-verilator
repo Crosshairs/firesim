@@ -14,8 +14,39 @@
 #   top_module: The top of the DUT
 #   (optional) verilator_conf: An verilator configuration file
 
+#	+incdir+$(GEN_DIR) \
+#	-Werror-PINMISSING \
+#	-Werror-IMPLICIT \
+#	-Wno-fatal \
+#	-Wno-PINCONNECTEMPTY \
+#	-Wno-ASSIGNDLY \
+#	-Wno-DECLFILENAME \
+#	-Wno-UNUSED \
+#	-Wno-UNOPTFLAT \
+#	-Wno-BLKANDNBLK \
+#	-Wno-style \
+#	-Wall \
+#	-UVERILATOR \
+#	-Uverilator \
+#	-Uverilator3 \
+
 VERILATOR ?= verilator --cc --exe
-override VERILATOR_FLAGS := --assert -Wno-STMTDLY -O3 \
+override VERILATOR_FLAGS := \
+	--unroll-count 256 \
+	--vpi \
+	-Wno-STMTDLY \
+	-Werror-PINMISSING \
+	-Werror-IMPLICIT \
+	-Wno-fatal \
+	-Wno-PINCONNECTEMPTY \
+	-Wno-ASSIGNDLY \
+	-Wno-DECLFILENAME \
+	-Wno-UNUSED \
+	-Wno-UNOPTFLAT \
+	-Wno-BLKANDNBLK \
+	-Wno-style \
+	-Wall \
+	-O3 \
 	--output-split 10000 \
 	--output-split-cfuncs 100 \
 	-CFLAGS "$(CXXFLAGS) $(CFLAGS)" \

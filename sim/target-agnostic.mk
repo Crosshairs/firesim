@@ -57,7 +57,10 @@ MIDAS_VERILOG := $(basename $(VERILOG)).midas.v
 BB_VERILOG := $(basename $(VERILOG)).blackbox.v
 
 VERILATOR ?= verilator --cc --exe
-OTHER_PREPROC_FLAGS ?=
+OTHER_PREPROC_FLAGS ?= \
+	-UVERILATOR \
+	-Uverilator \
+	-Uverilator3
 VERILATOR_PREPROC_FLAGS = \
 	-E \
 	+incdir+$(GENERATED_DIR) \
@@ -74,9 +77,7 @@ VERILATOR_PREPROC_FLAGS = \
 	-Wno-BLKANDNBLK \
 	-Wno-style \
 	-Wall \
-	-UVERILATOR \
-	-Uverilator \
-	-Uverilator3 \
+	+define+SRAM_NO_INIT \
 	-f $(BB_F) \
 	$(OTHER_PREPROC_FLAGS)
 
@@ -130,11 +131,13 @@ verilator_debug = $(GENERATED_DIR)/V$(DESIGN)-debug
 $(verilator) $(verilator_debug): export CXXFLAGS := $(CXXFLAGS) $(common_cxx_flags) $(VERILATOR_CXXOPTS) -D RTLSIM
 $(verilator) $(verilator_debug): export LDFLAGS := $(LDFLAGS) $(common_ld_flags)
 
-$(verilator): $(HEADER) $(DRIVER_CC) $(DRIVER_H) $(midas_cc) $(midas_h)
+$(verilator): OTHER_PREPROC_FLAGS=+define+VERILATOR
+$(verilator): $(HEADER) $(DRIVER_CC) $(DRIVER_H) $(midas_cc) $(midas_h) $(VERILOG)
 	$(MAKE) $(VERILATOR_MAKEFLAGS) -C $(simif_dir) verilator PLATFORM=$(PLATFORM) DESIGN=$(DESIGN) \
 	GEN_DIR=$(GENERATED_DIR) DRIVER="$(DRIVER_CC)"
 
-$(verilator_debug): $(HEADER) $(DRIVER_CC) $(DRIVER_H) $(midas_cc) $(midas_h)
+$(verilator_debug): OTHER_PREPROC_FLAGS=+define+VERILATOR
+$(verilator_debug): $(HEADER) $(DRIVER_CC) $(DRIVER_H) $(midas_cc) $(midas_h) $(VERILOG)
 	$(MAKE) $(VERILATOR_MAKEFLAGS) -C $(simif_dir) verilator-debug PLATFORM=$(PLATFORM) DESIGN=$(DESIGN) \
 	GEN_DIR=$(GENERATED_DIR) DRIVER="$(DRIVER_CC)"
 
@@ -153,11 +156,13 @@ vcs_debug = $(GENERATED_DIR)/$(DESIGN)-debug
 $(vcs) $(vcs_debug): export CXXFLAGS := $(CXXFLAGS) $(common_cxx_flags) $(VCS_CXXOPTS) -I$(VCS_HOME)/include -D RTLSIM
 $(vcs) $(vcs_debug): export LDFLAGS := $(LDFLAGS) $(common_ld_flags)
 
-$(vcs): $(HEADER) $(DRIVER_CC) $(DRIVER_H) $(midas_cc) $(midas_h)
+$(vcs): OTHER_PREPROC_FLAGS=+define+VERILATOR
+$(vcs): $(HEADER) $(DRIVER_CC) $(DRIVER_H) $(midas_cc) $(midas_h) $(VERILOG)
 	$(MAKE) -C $(simif_dir) vcs PLATFORM=$(PLATFORM) DESIGN=$(DESIGN) \
 	GEN_DIR=$(GENERATED_DIR) DRIVER="$(DRIVER_CC)"
 
-$(vcs_debug): $(HEADER) $(DRIVER_CC) $(DRIVER_H) $(midas_cc) $(midas_h)
+$(vcs_debug): OTHER_PREPROC_FLAGS=+define+VERILATOR
+$(vcs_debug): $(HEADER) $(DRIVER_CC) $(DRIVER_H) $(midas_cc) $(midas_h) $(VERILOG)
 	$(MAKE) -C $(simif_dir) vcs-debug PLATFORM=$(PLATFORM) DESIGN=$(DESIGN) \
 	GEN_DIR=$(GENERATED_DIR) DRIVER="$(DRIVER_CC)"
 
